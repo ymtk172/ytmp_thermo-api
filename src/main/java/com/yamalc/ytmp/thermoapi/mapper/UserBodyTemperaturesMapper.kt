@@ -6,13 +6,13 @@ import org.apache.ibatis.annotations.Param
 import org.apache.ibatis.annotations.Select
 import java.util.*
 
+/**
+ * when 0 HIT
+ * - domain -> null
+ * - List<domain> -> Empty List
+ */
 @Mapper
 interface UserBodyTemperaturesMapper {
-    @Select("SELECT user_id, body_temperatures, data_timestamp " +
-            "FROM user_body_temperatures " +
-            "WHERE user_id = #{userId}")
-    fun select(userId: String): List<UserBodyTemperatures>
-
     @Select("SELECT * " +
             "FROM user_body_temperatures " +
             "WHERE user_id = #{userId} " +
@@ -23,6 +23,6 @@ interface UserBodyTemperaturesMapper {
     @Select("SELECT * " +
             "FROM user_body_temperatures " +
             "WHERE user_id = #{userId} " +
-            "AND data_timestamp >= #{baseDate}")
-    fun selectBodyTemperaturePeriod(@Param("userId") userId: String, @Param("baseDate") baseDate: Date): Array<UserBodyTemperatures>
+            "AND data_timestamp >= #{fromDate}")
+    fun selectBodyTemperaturePeriod(@Param("userId") userId: String, @Param("fromDate") fromDate: Date): Array<UserBodyTemperatures>
 }

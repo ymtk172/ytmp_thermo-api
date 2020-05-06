@@ -1,9 +1,9 @@
 package com.yamalc.ytmp.thermoapi.service
 
 import com.yamalc.ytmp.grpc.thermo.BodyTemperatureResponse
+import com.yamalc.ytmp.grpc.thermo.ResultType
 import com.yamalc.ytmp.grpc.thermo.ThermoGrpc
 import com.yamalc.ytmp.grpc.thermo.UserIdRequest
-import com.yamalc.ytmp.thermoapi.domain.UserBodyTemperatures
 import com.yamalc.ytmp.thermoapi.mapper.UserBodyTemperaturesMapper
 import io.grpc.stub.StreamObserver
 import org.apache.ibatis.session.SqlSessionFactory
@@ -14,25 +14,34 @@ import java.util.*
 import java.util.logging.Logger
 
 class ThermoServiceImpl(sqlSessionFactory: SqlSessionFactory) : ThermoGrpc.ThermoImplBase() {
-    var logger = Logger.getLogger(javaClass.name)
+    var logger: Logger = Logger.getLogger(javaClass.name)
     companion object private var sessionFactory: SqlSessionFactory = sqlSessionFactory
-    private val shortPeriod: Long = 14
-    private val longPeriod: Long = 30
+    private val shortDayPeriod: Long = 14
+    private val longMonthPeriod: Long = 1
     override fun latestBodyTemperature(request: UserIdRequest,
                                        responseObserver: StreamObserver<BodyTemperatureResponse>) {
         logger.info(String.format("request: id = %s", request.id))
-        val result: UserBodyTemperatures = try {
-            sessionFactory.openSession().use { session ->
-                        session.getMapper(UserBodyTemperaturesMapper::class.java).selectLatestBodyTemperature(request.id)
+        var resultBodyTemperature = -1F
+        val resultType = try {
+            val dbAccessResult = sessionFactory.openSession().use { session ->
+                        session.getMapper(UserBodyTemperaturesMapper::class.java).selectLatestBodyTemperature(request.id)}
+            if (dbAccessResult == null) {
+                ResultType.NOT_EXISTS
+            } else {
+                resultBodyTemperature = dbAccessResult.body_temperatures!!
+                // ResultType Declaration must be bottom
+                ResultType.SUCCESS
             }
         } catch (e: IOException) {
-            println("DB access error occurred")
-            throw e
+            logger.warning("DB access error occurred")
+            e.printStackTrace()
+            ResultType.FAILURE
         }
-        val response = BodyTemperatureResponse
+        val response: BodyTemperatureResponse = BodyTemperatureResponse
                 .newBuilder()
+                .setResult(resultType)
                 .setId(request.id)
-                .setBodyTemperature(result.body_temperatures!!)
+                .setBodyTemperature(resultBodyTemperature)
                 .build()
         responseObserver.onNext(response)
         responseObserver.onCompleted()
@@ -41,21 +50,31 @@ class ThermoServiceImpl(sqlSessionFactory: SqlSessionFactory) : ThermoGrpc.Therm
     override fun latestHealthCheck(request: UserIdRequest,
                                    responseObserver: StreamObserver<BodyTemperatureResponse>) {
         logger.info(String.format("request: id = %s", request.id))
-        val result: Array<UserBodyTemperatures> = try {
-            sessionFactory.openSession().use { session ->
+        var resultBodyTemperature = -1F
+        val resultType = try {
+            val dbAccessResult = sessionFactory.openSession().use { session ->
                 session.getMapper(UserBodyTemperaturesMapper::class.java)
                        .selectBodyTemperaturePeriod(request.id,
                             Date.from(LocalDate.now()
-                                               .minusDays(shortPeriod)
+                                               .minusDays(shortDayPeriod)
                                                .atStartOfDay(ZoneId.systemDefault()).toInstant()))}
+            if (dbAccessResult.isEmpty()) {
+                ResultType.NOT_EXISTS
+            } else {
+                resultBodyTemperature = dbAccessResult.maxBy { it.body_temperatures!! }?.body_temperatures!!
+                // ResultType Declaration must be bottom
+                ResultType.SUCCESS
+            }
         } catch (e: IOException) {
-            println("DB access error occurred")
-            throw e
+            logger.warning("DB access error occurred")
+            e.printStackTrace()
+            ResultType.FAILURE
         }
-        val response = BodyTemperatureResponse
+        val response: BodyTemperatureResponse = BodyTemperatureResponse
                 .newBuilder()
+                .setResult(resultType)
                 .setId(request.id)
-                .setBodyTemperature(result.maxBy { it.body_temperatures!! }?.body_temperatures!!)
+                .setBodyTemperature(resultBodyTemperature)
                 .build()
         responseObserver.onNext(response)
         responseObserver.onCompleted()
@@ -64,21 +83,31 @@ class ThermoServiceImpl(sqlSessionFactory: SqlSessionFactory) : ThermoGrpc.Therm
     override fun recentlyHealthCheck(request: UserIdRequest,
                                      responseObserver: StreamObserver<BodyTemperatureResponse>) {
         logger.info(String.format("request: id = %s", request.id))
-        val result: Array<UserBodyTemperatures> = try {
-            sessionFactory.openSession().use { session ->
+        var resultBodyTemperature = -1F
+        val resultType = try {
+            val dbAccessResult = sessionFactory.openSession().use { session ->
                 session.getMapper(UserBodyTemperaturesMapper::class.java)
                         .selectBodyTemperaturePeriod(request.id,
                                 Date.from(LocalDate.now()
-                                        .minusDays(shortPeriod)
+                                        .minusDays(shortDayPeriod)
                                         .atStartOfDay(ZoneId.systemDefault()).toInstant()))}
+            if (dbAccessResult.isEmpty()) {
+                ResultType.NOT_EXISTS
+            } else {
+                resultBodyTemperature = dbAccessResult.map { it.body_temperatures!! }.average().toFloat()
+                // ResultType Declaration must be bottom
+                ResultType.SUCCESS
+            }
         } catch (e: IOException) {
-            println("DB access error occurred")
-            throw e
+            logger.warning("DB access error occurred")
+            e.printStackTrace()
+            ResultType.FAILURE
         }
-        val response = BodyTemperatureResponse
+        val response: BodyTemperatureResponse = BodyTemperatureResponse
                 .newBuilder()
+                .setResult(resultType)
                 .setId(request.id)
-                .setBodyTemperature(result.map { it.body_temperatures!! }.average().toFloat())
+                .setBodyTemperature(resultBodyTemperature)
                 .build()
         responseObserver.onNext(response)
         responseObserver.onCompleted()
@@ -87,21 +116,31 @@ class ThermoServiceImpl(sqlSessionFactory: SqlSessionFactory) : ThermoGrpc.Therm
     override fun normalBodyTemperature(request: UserIdRequest,
                                        responseObserver: StreamObserver<BodyTemperatureResponse>) {
         logger.info(String.format("request: id = %s", request.id))
-        val result: Array<UserBodyTemperatures> = try {
-            sessionFactory.openSession().use { session ->
+        var resultBodyTemperature = -1F
+        val resultType = try {
+            val dbAccessResult = sessionFactory.openSession().use { session ->
                 session.getMapper(UserBodyTemperaturesMapper::class.java)
                         .selectBodyTemperaturePeriod(request.id,
                                 Date.from(LocalDate.now()
-                                        .minusDays(longPeriod)
+                                        .minusMonths(longMonthPeriod)
                                         .atStartOfDay(ZoneId.systemDefault()).toInstant()))}
+            if (dbAccessResult.isEmpty()) {
+                ResultType.NOT_EXISTS
+            } else {
+                resultBodyTemperature = dbAccessResult.map { it.body_temperatures!! }.average().toFloat()
+                // ResultType Declaration must be bottom
+                ResultType.SUCCESS
+            }
         } catch (e: IOException) {
-            println("DB access error occurred")
-            throw e
+            logger.warning("DB access error occurred")
+            e.printStackTrace()
+            ResultType.FAILURE
         }
-        val response = BodyTemperatureResponse
+        val response: BodyTemperatureResponse = BodyTemperatureResponse
                 .newBuilder()
+                .setResult(resultType)
                 .setId(request.id)
-                .setBodyTemperature(result.map { it.body_temperatures!! }.average().toFloat())
+                .setBodyTemperature(resultBodyTemperature)
                 .build()
         responseObserver.onNext(response)
         responseObserver.onCompleted()

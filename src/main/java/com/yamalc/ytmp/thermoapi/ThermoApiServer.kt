@@ -4,7 +4,6 @@ import com.yamalc.ytmp.thermoapi.service.ThermoServiceImpl
 import io.grpc.Server
 import io.grpc.ServerBuilder
 import org.apache.ibatis.io.Resources
-import org.apache.ibatis.session.SqlSessionFactory
 import org.apache.ibatis.session.SqlSessionFactoryBuilder
 import java.io.IOException
 import java.io.Reader
@@ -14,7 +13,6 @@ import java.util.logging.Logger
 class ThermoApiServer {
     var logger = Logger.getLogger(javaClass.name)
     var server: Server? = null
-    var sessionFactory: SqlSessionFactory? = null
     private val MYBATIS_CONFIG = "mybatis-config.xml"
 
     @Throws(IOException::class)
